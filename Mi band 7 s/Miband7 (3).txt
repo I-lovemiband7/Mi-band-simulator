@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi Band 7 Emulator Completo</title>
+<style>
+:root { --accent:#00e676; }
+body { margin:0; background:#222; display:flex; justify-content:center; align-items:center; height:100vh; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto; }
+.band { width:230px; height:490px; background:#000; border-radius:42px; padding:12px; box-shadow:0 0 40px rgba(0,0,0,.8); position:relative; overflow:hidden; }
+.screen { width:100%; height:100%; border-radius:32px; color:white; position:relative; display:flex; flex-direction:column; overflow:hidden; }
+.background { position:absolute; inset:0; z-index:0; background-size:cover; background-position:center; }
+.page { flex:1; padding:16px; overflow-y:hidden; position:relative; z-index:1; }
+.page.nowatchface {animation:none;}
+.time {font-size:3rem; text-align:center; margin-top:70px;}
+.date {text-align:center; opacity:.7;}
+.center {text-align:center; margin-top:30px;}
+.app { background:rgba(255,255,255,.05); border-radius:16px; padding:14px; margin:10px 0; text-align:center; font-size:1.05rem; cursor:pointer; transition: transform .15s, background .2s; }
+.app:active {transform:scale(.96); background:rgba(255,255,255,.15);}
+.back {text-align:center; color:var(--accent); margin-top:16px; cursor:pointer;}
+.progress-bar { background:rgba(255,255,255,.2); border-radius:8px; height:12px; width:100%; margin:10px 0; overflow:hidden; }
+.progress-bar-inner { background:var(--accent); height:100%; width:0%; transition:width .3s; }
+#instructions { position:fixed; top:10px; right:10px; background:rgba(0,0,0,0.6); color:white; padding:10px 14px; border-radius:12px; font-size:0.85rem; line-height:1.4; max-width:200px; box-shadow:0 0 10px rgba(0,0,0,0.5); z-index:1000; }
+#instructions h3 {margin:0 0 6px 0; font-size:0.95rem; color:var(--accent);}
+canvas {border-radius:12px; display:block; margin:auto;}
+</style>
+</head>
+<body>
+<div class="band">
+  <div class="screen" id="screen">
+    <div class="background" id="bg"></div>
+    <div id="pageContainer"></div>
+  </div>
+</div>
+
+<div id="instructions">
+  <h3>Controles:</h3>
+  W ↑ : abrir menú<br>
+  S ↓ : volver reloj<br>
+  X : salir de app → menú<br>
+  Barra espacio: flappy saltar<br>
+  Q / E : bajar/subir volumen música<br>
+  Scroll: mover apps largas
+</div>
+
+<script>
+// =================== VARIABLES PRINCIPALES ===================
+const pageContainer = document.getElementById("pageContainer");
+const bg = document.getElementById("bg");
+let currentApp = "watchface";
+let bgOpacity = localStorage.getItem("bgOpacity") ? parseFloat(localStorage.getItem("bgOpacity")) : 0.7;
+let bgImage = localStorage.getItem("bgImage") || "fondo1.jpg"; 
+
+let audio = new Audio();
+let playlist = ['beethoven.mp3','paganini.mp3'];
+let currentSongIndex = -1;
+let volume = 0.5; 
+
+// =================== FONDO ===================
+function updateBackground(){
+  if(bgImage){
+    bg.style.backgroundImage = `url(${bgImage})`;
+    bg.style.opacity = bgOpacity;
+  } else {
+    bg.style.background = `linear-gradient(180deg, rgba(17,17,17,${bgOpacity}), rgba(51,51,51,${bgOpacity}))`;
+  }
+}
+updateBackground();
+
+// =================== CARGAR PÁGINA ===================
+function load(html, appName, noAnim=false){
+  pageContainer.innerHTML = `<div class="page ${noAnim?"nowatchface":""}" id="page">${html}</div>`;
+  currentApp = appName;
+}
+
+// =================== SCROLL ===================
+pageContainer.addEventListener("wheel", e=>{
+  const page = document.getElementById("page");
+  if(page){
+    page.scrollTop += e.deltaY;
+    e.preventDefault();
+  }
+},{passive:false});
+
+// =================== WATCHFACE ===================
+function watchface(){
+  const now = new Date();
+  load(`
+    <div class="time">${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}</div>
+    <div class="date">${now.toDateString()}</div>
+    <div class="center"><div class="app" onclick="menu()">abrir apps</div></div>
+  `,"watchface",true);
+}
+setInterval(()=>{ if(currentApp==="watchface") watchface(); },1000);
+
+// =================== MENÚ ===================
+function menu(){
+  load(`
+    <h2 class="center">apps</h2>
+    <div class="app" onclick="pasos()">pasos</div>
+    <div class="app" onclick="ritmo()">ritmo</div>
+    <div class="app" onclick="musicApp()">música</div>
+    <div class="app" onclick="social()">social</div>
+    <div class="app" onclick="games()">juegos</div>
+    <div class="app" onclick="settings()">configuración</div>
+    <div class="back" onclick="watchface()">volver</div>
+  `,"menu");
+}
+
+// =================== PASOS ===================
+function pasos(){ 
+  let steps = Math.floor(Math.random()*10000);
+  let goal = 8000;
+  let percent = Math.min(100, Math.round((steps/goal)*100));
+  load(`
+    <h2 class="center">pasos</h2>
+    <p class="center">${steps} pasos</p>
+    <div class="progress-bar"><div class="progress-bar-inner" style="width:${percent}%"></div></div>
+    <p class="center">Meta: ${goal}</p>
+    <div class="back" onclick="menu()">volver</div>
+  `,"pasos"); 
+}
+
+// =================== RITMO ===================
+function ritmo(){ 
+  let bpm = 60 + Math.floor(Math.random()*60);
+  let minBpm = 60, maxBpm = 120;
+  let percent = Math.min(100, Math.round(((bpm-minBpm)/(maxBpm-minBpm))*100));
+  load(`
+    <h2 class="center">ritmo</h2>
+    <p class="center">${bpm} bpm</p>
+    <div class="progress-bar"><div class="progress-bar-inner" style="width:${percent}%"></div></div>
+    <p class="center">Min: ${minBpm} Max: ${maxBpm}</p>
+    <div class="back" onclick="menu()">volver</div>
+  `,"ritmo"); 
+}
+
+// =================== MÚSICA ===================
+function musicApp(){
+  load(`
+    <h2 class="center">música</h2>
+    <div class="app" onclick="playSong(0)">novena sinfonía – beethoven</div>
+    <div class="app" onclick="playSong(1)">la campanella – paganini</div>
+    <div class="app" onclick="pauseSong()">pausar / reanudar</div>
+    <p class="center" id="songName"></p>
+    <p class="center" id="volumeDisplay">volumen: ${Math.round(volume*100)}%</p>
+    <div class="back" onclick="stopMusic(); menu()">volver</div>
+  `,"music");
+  audio.volume = volume;
+  currentSongIndex = -1;
+}
+function playSong(index){
+  currentSongIndex = index;
+  audio.src = playlist[index];
+  audio.volume = volume;
+  audio.play();
+  document.getElementById('songName').textContent = index===0?"Novena Sinfonía – Beethoven":"La Campanella – Paganini";
+  updateVolumeDisplay();
+}
+function pauseSong(){ if(audio){ audio.paused?audio.play():audio.pause(); }}
+function stopMusic(){ if(audio){ audio.pause(); audio.currentTime=0; document.getElementById('songName')?.remove(); updateVolumeDisplay(); }}
+function updateVolumeDisplay(){ const display = document.getElementById('volumeDisplay'); if(display) display.textContent = "Volumen: "+Math.round(volume*100)+"%"; }
+
+// =================== JUEGOS ===================
+function games(){
+  load(`
+    <h2 class="center">juegos</h2>
+    <div class="app" onclick="flappy()">flappy</div>
+    <div class="app" onclick="snake()">snake</div>
+    <div class="back" onclick="menu()">volver</div>
+  `,"games");
+}
+
+// =================== CONFIGURACIÓN ===================
+function settings(){
+  load(`
+    <h2 class="center">configuración</h2>
+    <div class="app" onclick="setBgOpacity(0.5)">transparencia baja</div>
+    <div class="app" onclick="setBgOpacity(0.7)">transparencia media</div>
+    <div class="app" onclick="setBgOpacity(0.9)">transparencia alta</div>
+    <div class="app" onclick="setBgImage('fondo1.jpg')">fondo 1</div>
+    <div class="app" onclick="setBgImage('fondo2.jpg')">fondo 2</div>
+    <div class="app" onclick="setBgImage(null)">sin fondo</div>
+    <div class="back" onclick="menu()">volver</div>
+  `,"settings");
+}
+
+function setBgOpacity(value){
+  bgOpacity = value;
+  localStorage.setItem("bgOpacity", value);
+  updateBackground();
+  menu();
+}
+
+function setBgImage(file){
+  bgImage = file;
+  localStorage.setItem("bgImage", file);
+  updateBackground();
+  menu();
+}
+
+// =================== TECLADO ===================
+document.addEventListener("keydown", e=>{
+  if(e.key==='w' && currentApp==="watchface") menu(); 
+  if(e.key==='s' && currentApp==="watchface") watchface();
+  if(e.key==='x'){ if(currentApp!=="watchface" && currentApp!=="menu") menu(); }
+  
+  if(currentApp==="music"){
+    if(e.key==='q'){ volume=Math.max(0,volume-0.1); if(audio) audio.volume=volume; updateVolumeDisplay();}
+    if(e.key==='e'){ volume=Math.min(1,volume+0.1); if(audio) audio.volume=volume; updateVolumeDisplay();}
+  }
+});
+
+// =================== INICIO ===================
+watchface();
+</script>
+</body>
+</html>
